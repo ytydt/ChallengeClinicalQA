@@ -6,6 +6,38 @@ import time
 import random
 import json
 
+
+HEADERS = {
+    "User-Agent": (
+        "Mozilla/5.0 (Windows NT 10.0; Win64; x64) "
+        "AppleWebKit/537.36 (KHTML, like Gecko) "
+        "Chrome/115.0.0.0 Safari/537.36"
+    ),
+    "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+    "Accept-Language": "en-US,en;q=0.9",
+    "Connection": "keep-alive",
+}
+
+
+def fetch_page(url, max_retries=5, wait_range=(1, 3)):
+    """Fetch HTML content while attempting to bypass anti-bot pages."""
+
+    scraper = cloudscraper.create_scraper(
+        delay=1,
+        browser={"browser": "chrome", "platform": "windows", "desktop": True},
+    )
+    scraper.headers.update(HEADERS)
+
+    for _ in range(max_retries):
+        try:
+            resp = scraper.get(url, timeout=10)
+            if resp.status_code == 200 and "Just a moment" not in resp.text:
+                return resp.text
+        except Exception:
+            pass
+        time.sleep(random.uniform(*wait_range))
+    return None
+
 def extract_paragraphs(tempsoup):
     casepara=[]
     case=0
@@ -107,9 +139,10 @@ if __name__ == '__main__':
     print("Start Scraping...")
     for index, row in url_df.iterrows():
         url = row['link']
-        # time.sleep(random.uniform(1, 2))
-        scraper = cloudscraper.create_scraper(delay=1, browser="chrome")
-        content = scraper.get(url).text
+        content = fetch_page(url)
+        if content is None:
+            print(f"Failed to fetch article: {url}")
+            continue
         soup = BeautifulSoup(content, 'html.parser')
         results = soup.findAll("div",{"class": "article-content"})
         checkimage=False
@@ -117,9 +150,10 @@ if __name__ == '__main__':
         whethermcq,mcqquestion,answers=extractMCQ(soup)
         if whethermcq==None:
             print("No MCQ found....trying again ")
-            # time.sleep(random.uniform(1, 2))
-            scraper = cloudscraper.create_scraper(delay=1, browser="chrome")
-            content = scraper.get(url).text
+            content = fetch_page(url)
+            if content is None:
+                print("Please check your license to ensure you have access to JAMA website.")
+                continue
             soup = BeautifulSoup(content, 'html.parser')
             whethermcq,mcqquestion,answers=extractMCQ(soup)
 
